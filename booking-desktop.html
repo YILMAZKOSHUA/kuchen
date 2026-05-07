@@ -66,6 +66,8 @@ main { padding: 26px 32px; max-width: 1200px; margin: 0 auto; }
 table { width: 100%; border-collapse: collapse; background: var(--ivory); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
 thead tr { background: var(--brown-dark); color: var(--ivory); }
 thead th { padding: 11px 13px; text-align: left; font-family: sans-serif; font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; font-weight: normal; }
+tfoot tr { background: var(--brown-mid); color: var(--ivory); }
+tfoot td { padding: 10px 13px; font-family: sans-serif; font-size: 0.85rem; font-weight: bold; }
 tbody tr { border-bottom: 1px solid var(--beige); transition: background 0.1s; }
 tbody tr:last-child { border-bottom: none; }
 tbody tr:hover { background: #fdf5ea; }
@@ -147,6 +149,7 @@ pre { background: var(--cream); border-radius: 6px; padding: 12px; font-size: 0.
   <button onclick="showView('courses')">Kurse & Preise</button>
   <button onclick="showView('participants')">Teilnehmer</button>
   <button onclick="showView('export')">Export</button>
+  <button onclick="showView('finanzen')">Finanzen</button>
   <button onclick="showView('settings')">Einstellungen</button>
 </nav>
 
@@ -170,7 +173,7 @@ pre { background: var(--cream); border-radius: 6px; padding: 12px; font-size: 0.
   <table>
     <thead><tr>
       <th>Tag</th><th>Zeit</th><th>Kurs</th><th>Kursleiter</th>
-      <th>Preis (€)</th><th>Kapazität</th><th>Gebucht</th><th>Bezahlt</th>
+      <th>Option</th><th>Preis (€)</th><th>Kapazität</th><th>Gebucht</th><th>Bezahlt</th>
     </tr></thead>
     <tbody id="courses-table-body"></tbody>
   </table>
@@ -210,6 +213,45 @@ pre { background: var(--cream); border-radius: 6px; padding: 12px; font-size: 0.
     <button class="btn secondary small" onclick="previewData()" style="margin-bottom:10px">Aktualisieren</button>
     <pre id="export-preview">—</pre>
   </div>
+</div>
+
+<!-- FINANZEN -->
+<div id="view-finanzen">
+  <div class="section-header" style="margin-bottom:16px">
+    <h2>Mayamunay Einnahmen</h2>
+    <span style="font-family:sans-serif;font-size:0.78rem;color:#9a7a50">Berechnet auf Basis der aktuellen Buchungen</span>
+  </div>
+
+  <!-- Übersichts-Karten -->
+  <div class="stats-grid" id="fin-stats" style="margin-bottom:20px"></div>
+
+  <!-- Legende -->
+  <div class="card" style="margin-bottom:20px;padding:14px 18px">
+    <div style="display:flex;gap:24px;flex-wrap:wrap;font-family:sans-serif;font-size:0.78rem;">
+      <span><strong style="color:var(--gold)">Eigener</strong> → 100% der Ticketeinnahmen</span>
+      <span><strong style="color:var(--gold)">A</strong> → 120€ Gebühr fix (Mo–Fr)</span>
+      <span><strong style="color:var(--gold)">B</strong> → 60€ + 35% der Tickets (Mo–Fr)</span>
+      <span><strong style="color:var(--gold)">AA</strong> → 160€ Gebühr fix (Sa+So)</span>
+      <span><strong style="color:var(--gold)">BB</strong> → 80€ + 35% der Tickets (Sa+So)</span>
+    </div>
+  </div>
+
+  <!-- Detailtabelle -->
+  <table>
+    <thead><tr>
+      <th>Tag</th><th>Kurs</th><th>Kursleiter</th><th>Option</th>
+      <th>TN × Preis</th><th>Gebühr fix</th><th>MM 35%</th><th style="color:var(--gold-light)">MM Einnahme</th><th style="color:#8fd4b0">KL Auszahlung</th>
+    </tr></thead>
+    <tbody id="fin-table-body"></tbody>
+    <tfoot id="fin-tfoot"></tfoot>
+  </table>
+
+  <!-- Pro Kursleiter -->
+  <h3 style="margin:24px 0 12px;font-size:1rem;color:var(--brown-dark)">Auszahlung an Kursleiter</h3>
+  <table>
+    <thead><tr><th>Kursleiter</th><th>Option(en)</th><th>Tickets gesamt</th><th>Kursleiter erhält</th><th>Mayamunay erhält</th></tr></thead>
+    <tbody id="fin-leader-body"></tbody>
+  </table>
 </div>
 
 <!-- SETTINGS -->
@@ -273,35 +315,65 @@ pre { background: var(--cream); border-radius: 6px; padding: 12px; font-size: 0.
 
 <script>
 // ===================== KURSPLAN (nach Wochenplan-Grafik) =====================
+// Option-Konditionen:
+// Eigener  → Mayamunay behält 100% der Ticketeinnahmen
+// A        → 120€ Gebühr + Kursleiter behält 100% (Mo–Fr)
+// B        → 60€ Gebühr + Kursleiter behält 65% → Mayamunay 35% (Mo–Fr)
+// AA       → 160€ Gebühr + Kursleiter behält 100% (Sa+So)
+// BB       → 80€ Gebühr + Kursleiter behält 65% → Mayamunay 35% (Sa+So)
+
+const OPTION_LABELS = {
+  'Eigener': 'Eigener', 'A': 'A · 120€ fix', 'B': 'B · 60€ + 35%', 'AA': 'AA · 160€ fix', 'BB': 'BB · 80€ + 35%'
+};
+
+function calcMM(course) {
+  // t = Gesamt-Ticketeinnahmen dieses Kurses
+  const t = course.participants.length * course.price;
+  switch(course.option) {
+    // Eigener: Mayamunay behält 100% der Tickets
+    case 'Eigener': return { fixed:0,   mmTicket:t,      klTicket:0,       total:t };
+    // A: 120€ Fixgebühr, KL behält 100% der Tickets
+    case 'A':       return { fixed:120, mmTicket:0,      klTicket:t,       total:120 };
+    // B: 60€ Fixgebühr + MM 35% der Tickets, KL 65%
+    case 'B':       return { fixed:60,  mmTicket:t*0.35, klTicket:t*0.65,  total:60 + t*0.35 };
+    // AA: 160€ Fixgebühr, KL behält 100% der Tickets
+    case 'AA':      return { fixed:160, mmTicket:0,      klTicket:t,       total:160 };
+    // BB: 80€ Fixgebühr + MM 35%, KL 65%
+    case 'BB':      return { fixed:80,  mmTicket:t*0.35, klTicket:t*0.65,  total:80 + t*0.35 };
+    default:        return { fixed:0,   mmTicket:0,      klTicket:0,       total:0 };
+  }
+}
+
 const DEFAULT_COURSES = [
-  // Mo 8.6. — kein Früh-Slot für Yilmaz am Montag
-  { id:1,  day:"Mo 8.6.", time:"10–13 Uhr", name:"Eröffnung",                    leader:"Mayamunay",        price:0,  capacity:50, participants:[] },
-  { id:2,  day:"Mo 8.6.", time:"14–17 Uhr", name:"Playfight",                    leader:"Kendra & Gabriel",  price:25, capacity:20, participants:[] },
-  { id:3,  day:"Mo 8.6.", time:"19–22 Uhr", name:"Bhajan Singen",                leader:"San Koch",          price:22, capacity:30, participants:[] },
+  // Mo 8.6.
+  { id:1,  day:"Mo 8.6.", time:"10–13 Uhr", name:"Eröffnung",                         leader:"Mayamunay",           price:0,  capacity:50, option:'Eigener', participants:[] },
+  { id:2,  day:"Mo 8.6.", time:"14–17 Uhr", name:"Playfight",                          leader:"Kendra & Gabriel",    price:25, capacity:20, option:'B',       participants:[] },
+  { id:3,  day:"Mo 8.6.", time:"19–22 Uhr", name:"Bhajan Singen",                      leader:"San Koch",            price:22, capacity:30, option:'B',       participants:[] },
   // Di 9.6.
-  { id:4,  day:"Di 9.6.", time:"9–10 Uhr",  name:"Faszien Flow",                 leader:"Yilmaz Koshua",    price:15, capacity:20, participants:[] },
-  { id:5,  day:"Di 9.6.", time:"10–13 Uhr", name:"Wasser, Reisevortrag & Zyklusarbeit", leader:"Kai, Louit & Greta", price:30, capacity:25, participants:[] },
-  { id:6,  day:"Di 9.6.", time:"14–17 Uhr", name:"Contact Improvisation",        leader:"San Koch",          price:25, capacity:20, participants:[] },
-  { id:7,  day:"Di 9.6.", time:"19–22 Uhr", name:"Klangreise & Frei-Singen",     leader:"Kai, Louit & Greta", price:28, capacity:25, participants:[] },
+  { id:4,  day:"Di 9.6.", time:"9–10 Uhr",  name:"Faszien Flow",                       leader:"Yilmaz Koshua",       price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:5,  day:"Di 9.6.", time:"10–13 Uhr", name:"Wasser, Reisevortrag & Zyklusarbeit",leader:"Kai, Louit & Greta",  price:30, capacity:25, option:'B',       participants:[] },
+  { id:6,  day:"Di 9.6.", time:"14–17 Uhr", name:"Contact Improvisation",               leader:"San Koch",            price:25, capacity:20, option:'A',       participants:[] },
+  { id:7,  day:"Di 9.6.", time:"19–22 Uhr", name:"Klangreise & Frei-Singen",            leader:"Kai, Louit & Greta",  price:28, capacity:25, option:'B',       participants:[] },
   // Mi 10.6.
-  { id:8,  day:"Mi 10.6.", time:"9–10 Uhr", name:"Faszien Flow",                 leader:"Yilmaz Koshua",    price:15, capacity:20, participants:[] },
+  { id:8,  day:"Mi 10.6.",time:"9–10 Uhr",  name:"Faszien Flow",                       leader:"Yilmaz Koshua",       price:15, capacity:20, option:'Eigener', participants:[] },
   // Do 11.6.
-  { id:9,  day:"Do 11.6.", time:"9–10 Uhr",  name:"Faszien Flow",                leader:"Yilmaz Koshua",    price:15, capacity:20, participants:[] },
-  { id:10, day:"Do 11.6.", time:"14–17 Uhr", name:"Kundalini Yoga",              leader:"Nadin Adesh",       price:28, capacity:20, participants:[] },
-  { id:11, day:"Do 11.6.", time:"19–22 Uhr", name:"Maya Munay Community Event",  leader:"Mayamunay",        price:0,  capacity:40, participants:[] },
+  { id:9,  day:"Do 11.6.",time:"9–10 Uhr",  name:"Faszien Flow",                       leader:"Yilmaz Koshua",       price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:10, day:"Do 11.6.",time:"14–17 Uhr", name:"Kundalini Yoga",                     leader:"Nadin Adesh",          price:28, capacity:20, option:'B',       participants:[] },
+  { id:11, day:"Do 11.6.",time:"19–22 Uhr", name:"Kakao Blog Event",                   leader:"Mayamunay",           price:0,  capacity:40, option:'Eigener', participants:[] },
   // Fr 12.6.
-  { id:12, day:"Fr 12.6.", time:"9–10 Uhr",  name:"Faszien Flow",               leader:"Yilmaz Koshua",    price:15, capacity:20, participants:[] },
-  { id:13, day:"Fr 12.6.", time:"14–17 Uhr", name:"Weibliche Souveränität",      leader:"Kristina Ebel",    price:35, capacity:15, participants:[] },
-  { id:14, day:"Fr 12.6.", time:"19–22 Uhr", name:"Vokale Gruppen-Improvisation",leader:"Doro",             price:22, capacity:25, participants:[] },
+  { id:12, day:"Fr 12.6.",time:"9–10 Uhr",  name:"Faszien Flow",                       leader:"Yilmaz Koshua",       price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:13, day:"Fr 12.6.",time:"14–17 Uhr", name:"Weibliche Souveränität",              leader:"Kristina Ebel",       price:35, capacity:15, option:'B',       participants:[] },
+  { id:14, day:"Fr 12.6.",time:"19–22 Uhr", name:"Vokale Gruppen-Improvisation",        leader:"Doro",                price:22, capacity:25, option:'A',       participants:[] },
   // Sa 13.6.
-  { id:15, day:"Sa 13.6.", time:"9–10 Uhr",  name:"Faszien Flow",               leader:"Yilmaz Koshua",    price:15, capacity:20, participants:[] },
-  { id:16, day:"Sa 13.6.", time:"10–13 Uhr", name:"Face Yoga",                  leader:"Nadine",            price:30, capacity:15, participants:[] },
-  { id:17, day:"Sa 13.6.", time:"14–17 Uhr", name:"Mevlut Vortrag",             leader:"Mevlut",            price:20, capacity:30, participants:[] },
-  { id:18, day:"Sa 13.6.", time:"19–22 Uhr", name:"Maya Munay Abend",           leader:"Mayamunay",        price:30, capacity:40, participants:[] },
+  { id:15, day:"Sa 13.6.",time:"9–10 Uhr",  name:"Faszien Flow",                       leader:"Yilmaz Koshua",       price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:16, day:"Sa 13.6.",time:"10–13 Uhr", name:"Face Yoga",                          leader:"Nadine",              price:30, capacity:15, option:'A',       participants:[] },
+  { id:17, day:"Sa 13.6.",time:"14–17 Uhr", name:"Mevlut Vortrag",                     leader:"Mevlut",              price:20, capacity:30, option:'Eigener', participants:[] },
+  { id:18, day:"Sa 13.6.",time:"19–22 Uhr", name:"Maya Munay Abend",                   leader:"Mayamunay",           price:30, capacity:40, option:'Eigener', participants:[] },
   // So 14.6.
-  { id:19, day:"So 14.6.", time:"9–10 Uhr",  name:"Faszien Flow",               leader:"Yilmaz Koshua",    price:15, capacity:20, participants:[] },
-  { id:20, day:"So 14.6.", time:"10–13 Uhr", name:"Fluent Heart – Cacao & Fluentbody", leader:"Elli Steiger", price:35, capacity:20, participants:[] },
-  { id:21, day:"So 14.6.", time:"19–22 Uhr", name:"Kakao Konzert",              leader:"Mayamunay",        price:30, capacity:40, participants:[] },
+  { id:19, day:"So 14.6.",time:"9–10 Uhr",  name:"Faszien Flow",                       leader:"Yilmaz Koshua",       price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:20, day:"So 14.6.",time:"10–13 Uhr", name:"Fluent Heart – Cacao & Fluentbody",  leader:"Elli Steiger",        price:35, capacity:20, option:'B',       participants:[] },
+  { id:21, day:"So 14.6.",time:"14–17 Uhr", name:"Rape Zeremonie / Breathwork",        leader:"Eileen Eichenberg",   price:35, capacity:20, option:'B',       participants:[] },
+  { id:22, day:"So 14.6.",time:"19–22 Uhr", name:"Kakao Konzert",                      leader:"Mayamunay",           price:30, capacity:40, option:'Eigener', participants:[] },
 ];
 
 // ===================== STATE =====================
@@ -309,9 +381,33 @@ let COURSES = [];
 let selectedCourseId = 1;
 let ghToken = '', ghGistId = '';
 
+function migrateCourses(saved) {
+  // Merge saved data with DEFAULT_COURSES – ensures new fields (option) and new courses are always present
+  const merged = DEFAULT_COURSES.map(def => {
+    const existing = saved.find(c => c.id === def.id);
+    if (!existing) return JSON.parse(JSON.stringify(def));
+    // carry over user data but fill missing fields from default
+    return Object.assign({}, def, {
+      price: existing.price ?? def.price,
+      capacity: existing.capacity ?? def.capacity,
+      option: existing.option || def.option,
+      participants: existing.participants || []
+    });
+  });
+  return merged;
+}
+
 function loadLocal() {
   const saved = localStorage.getItem('mm_courses');
-  COURSES = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_COURSES));
+  if (saved) {
+    try {
+      COURSES = migrateCourses(JSON.parse(saved));
+    } catch(e) {
+      COURSES = JSON.parse(JSON.stringify(DEFAULT_COURSES));
+    }
+  } else {
+    COURSES = JSON.parse(JSON.stringify(DEFAULT_COURSES));
+  }
   ghToken = localStorage.getItem('mm_gh_token') || '';
   ghGistId = localStorage.getItem('mm_gh_gist') || '';
   if (ghToken && ghGistId) {
@@ -342,7 +438,7 @@ async function loadFromGist() {
     if (!file) return false;
     const parsed = JSON.parse(file.content);
     if (parsed.courses) {
-      COURSES = parsed.courses;
+      COURSES = migrateCourses(parsed.courses);
       saveLocal();
       refreshCurrentView();
     }
@@ -424,14 +520,15 @@ function showMsg(msg) { document.getElementById('settings-msg').textContent = ms
 // ===================== NAVIGATION =====================
 let currentView = 'dashboard';
 function showView(name) {
-  ['dashboard','courses','participants','export','settings'].forEach(v => document.getElementById('view-'+v).style.display = 'none');
-  document.querySelectorAll('nav button').forEach((b,i) => b.classList.toggle('active', ['dashboard','courses','participants','export','settings'][i] === name));
+  ['dashboard','courses','participants','export','finanzen','settings'].forEach(v => document.getElementById('view-'+v).style.display = 'none');
+  document.querySelectorAll('nav button').forEach((b,i) => b.classList.toggle('active', ['dashboard','courses','participants','export','finanzen','settings'][i] === name));
   document.getElementById('view-'+name).style.display = 'block';
   currentView = name;
   if (name === 'dashboard') renderDashboard();
   if (name === 'courses') renderCourses();
   if (name === 'participants') renderParticipantSelect();
   if (name === 'export') previewData();
+  if (name === 'finanzen') renderFinanzen();
 }
 
 function refreshCurrentView() { showView(currentView); }
@@ -466,17 +563,100 @@ function renderCourses() {
   document.getElementById('courses-table-body').innerHTML = COURSES.map(c => {
     const isYilmaz = c.leader === 'Yilmaz Koshua';
     const paid = c.participants.filter(p=>p.paid).length;
+    const optSel = ['Eigener','A','B','AA','BB'].map(o => `<option value="${o}" ${c.option===o?'selected':''}>${o}</option>`).join('');
     return `<tr>
       <td><span class="tag tag-day">${c.day}</span></td>
       <td style="color:#7a6040;font-size:0.78rem">${c.time}</td>
       <td><strong>${esc(c.name)}</strong></td>
       <td>${isYilmaz ? `<span class="tag tag-yilmaz">${esc(c.leader)}</span>` : `<span style="color:#7a6040">${esc(c.leader)}</span>`}</td>
+      <td><select style="width:auto;padding:4px 6px;font-size:0.8rem" onchange="updateCourse(${c.id},'option',this.value);autoSync()">${optSel}</select></td>
       <td><input type="number" value="${c.price}" min="0" step="1" onchange="updateCourse(${c.id},'price',parseFloat(this.value)||0);autoSync()"></td>
       <td><input type="number" value="${c.capacity}" min="1" step="1" onchange="updateCourse(${c.id},'capacity',parseInt(this.value)||1);autoSync()"></td>
       <td><strong style="color:${c.participants.length>=c.capacity?'var(--red)':'var(--green)'}">${c.participants.length}</strong><span style="color:#9a7a50"> / ${c.capacity}</span></td>
       <td style="color:#7a6040">${paid} × ${c.price}€ = <strong>${paid*c.price}€</strong></td>
     </tr>`;
   }).join('');
+}
+
+// ===================== FINANZEN =====================
+function renderFinanzen() {
+  let totalMM = 0, totalKL = 0, totalFixed = 0, totalMMTicket = 0;
+
+  const rows = COURSES.map(c => {
+    const mm = calcMM(c);
+    const tickets = c.participants.length * c.price;
+    totalMM     += mm.total;
+    totalKL     += mm.klTicket;
+    totalFixed  += mm.fixed;
+    totalMMTicket += mm.mmTicket;
+    const optColor = c.option==='Eigener' ? 'var(--gold)' : c.option.startsWith('A') ? '#4a7c59' : '#7a6040';
+    const klAmt = mm.klTicket > 0 ? `<span style="color:var(--green)">${Math.round(mm.klTicket)}€</span>` : '–';
+    return `<tr>
+      <td><span class="tag tag-day">${c.day}</span> <span style="color:#9a7a50;font-size:0.75rem">${c.time}</span></td>
+      <td><strong>${esc(c.name)}</strong></td>
+      <td style="color:#7a6040;font-size:0.8rem">${esc(c.leader)}</td>
+      <td><span style="font-weight:bold;color:${optColor}">${c.option}</span></td>
+      <td style="color:#7a6040">${c.participants.length > 0 ? `${c.participants.length} × ${c.price}€ = <strong>${tickets}€</strong>` : `– (0 Buchungen)`}</td>
+      <td style="color:#7a6040">${mm.fixed > 0 ? mm.fixed+'€' : '–'}</td>
+      <td style="color:#7a6040">${mm.mmTicket > 0 ? Math.round(mm.mmTicket)+'€' : '–'}</td>
+      <td style="font-weight:bold;color:var(--gold)">${Math.round(mm.total)}€</td>
+      <td>${klAmt}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('fin-table-body').innerHTML = rows;
+  document.getElementById('fin-tfoot').innerHTML = `<tr>
+    <td colspan="4" style="color:var(--gold-light)">GESAMT</td>
+    <td></td>
+    <td>${totalFixed}€ fix</td>
+    <td>${Math.round(totalMMTicket)}€</td>
+    <td style="color:var(--gold-light)">${Math.round(totalMM)}€</td>
+    <td style="color:#8fd4b0">${Math.round(totalKL)}€</td>
+  </tr>`;
+
+  // Stats – korrekte Berechnung
+  document.getElementById('fin-stats').innerHTML = `
+    <div class="stat-card">
+      <div class="label">Mayamunay erhält</div>
+      <div class="value">${Math.round(totalMM)} €</div>
+      <div class="sub">Fixgebühren + Ticketanteil</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#4a7c59">
+      <div class="label">Davon Fixgebühren</div>
+      <div class="value">${totalFixed} €</div>
+      <div class="sub">A=120€ · B=60€ · AA=160€ · BB=80€</div>
+    </div>
+    <div class="stat-card" style="border-left-color:var(--gold-light)">
+      <div class="label">Davon 35% Ticketanteil</div>
+      <div class="value">${Math.round(totalMMTicket)} €</div>
+      <div class="sub">Aus Option B / BB Buchungen</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#56d399">
+      <div class="label">Kursleiter erhalten</div>
+      <div class="value">${Math.round(totalKL)} €</div>
+      <div class="sub">Aus Ticketverkauf (65% bzw. 100%)</div>
+    </div>`;
+
+  // Pro Kursleiter
+  const leaders = {};
+  COURSES.forEach(c => {
+    if (c.leader === 'Mayamunay') return;
+    if (!leaders[c.leader]) leaders[c.leader] = { opts: new Set(), tickets: 0, kl: 0, mm: 0 };
+    const mm = calcMM(c);
+    const t = c.participants.length * c.price;
+    leaders[c.leader].opts.add(c.option);
+    leaders[c.leader].tickets += t;
+    leaders[c.leader].kl += mm.klTicket;
+    leaders[c.leader].mm += mm.total;
+  });
+
+  document.getElementById('fin-leader-body').innerHTML = Object.entries(leaders).map(([name, d]) => `<tr>
+    <td><strong>${esc(name)}</strong></td>
+    <td>${[...d.opts].map(o=>`<span class="tag tag-day" style="margin-right:3px">${o}</span>`).join('')}</td>
+    <td style="color:#7a6040">${d.tickets}€</td>
+    <td style="color:var(--green);font-weight:bold">${Math.round(d.kl)}€</td>
+    <td style="color:var(--gold);font-weight:bold">${Math.round(d.mm)}€</td>
+  </tr>`).join('') || `<tr><td colspan="5" style="text-align:center;color:#9a7a50;padding:20px">Noch keine Buchungen</td></tr>`;
 }
 
 function updateCourse(id, key, val) {

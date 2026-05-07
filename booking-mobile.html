@@ -118,6 +118,17 @@ input.inline:focus { outline: none; border-color: var(--gold); }
 
 .btn-remove { background: none; border: none; color: #c09070; font-size: 1.1rem; cursor: pointer; padding: 4px 6px; line-height: 1; margin-left: auto; }
 
+/* Confirm dialog */
+.confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(45,26,14,0.55); z-index: 300; align-items: center; justify-content: center; padding: 20px; }
+.confirm-overlay.open { display: flex; }
+.confirm-box { background: var(--ivory); border-radius: 14px; padding: 22px 20px; width: 100%; max-width: 320px; text-align: center; }
+.confirm-box h4 { font-size: 1rem; margin-bottom: 8px; color: var(--brown-dark); }
+.confirm-box p { font-size: 0.82rem; color: #7a6040; margin-bottom: 18px; line-height: 1.4; }
+.confirm-box .btns { display: flex; gap: 10px; }
+.confirm-box .btns button { flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+.confirm-box .btns .no { background: var(--beige); color: var(--brown-dark); }
+.confirm-box .btns .yes { background: var(--red); color: white; }
+
 /* ── FAB ── */
 .fab {
   position: fixed; bottom: calc(env(safe-area-inset-bottom) + 68px); right: 18px;
@@ -202,6 +213,26 @@ input.inline:focus { outline: none; border-color: var(--gold); }
       <div id="tn-list"></div>
     </div>
 
+    <!-- FINANZEN -->
+    <div id="view-fin" class="view">
+      <div class="section-title">Mayamunay Einnahmen</div>
+      <div class="stats-2" id="fin-stats-m" style="margin-bottom:14px"></div>
+
+      <div style="background:var(--ivory);border-radius:10px;padding:12px;margin-bottom:12px;font-size:0.72rem;font-family:sans-serif;color:#7a6040;line-height:1.8;box-shadow:0 1px 6px rgba(45,26,14,0.08)">
+        <strong style="color:var(--gold)">Eigener</strong> = 100% Tickets ·
+        <strong style="color:var(--gold)">A</strong> = 120€ fix ·
+        <strong style="color:var(--gold)">B</strong> = 60€ + 35% ·
+        <strong style="color:var(--gold)">AA</strong> = 160€ fix ·
+        <strong style="color:var(--gold)">BB</strong> = 80€ + 35%
+      </div>
+
+      <div class="section-title">Pro Kurs</div>
+      <div id="fin-courses-m"></div>
+
+      <div class="section-title" style="margin-top:14px">Pro Kursleiter</div>
+      <div id="fin-leaders-m"></div>
+    </div>
+
     <!-- SETTINGS -->
     <div id="view-settings" class="view">
       <div class="settings-card">
@@ -235,9 +266,13 @@ input.inline:focus { outline: none; border-color: var(--gold); }
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
       Teilnehmer
     </button>
+    <button onclick="showView('fin')" id="nav-fin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Finanzen
+    </button>
     <button onclick="showView('settings')" id="nav-settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-      Einstellungen
+      ⚙
     </button>
   </nav>
 </div>
@@ -261,29 +296,54 @@ input.inline:focus { outline: none; border-color: var(--gold); }
 
 <div class="toast" id="toast"></div>
 
+<!-- Confirm Dialog -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <h4 id="confirm-title">Löschen?</h4>
+    <p id="confirm-msg"></p>
+    <div class="btns">
+      <button class="no" onclick="closeConfirm(false)">Abbrechen</button>
+      <button class="yes" id="confirm-yes" onclick="closeConfirm(true)">Löschen</button>
+    </div>
+  </div>
+</div>
+
 <script>
+function calcMM(course) {
+  const t = course.participants.length * course.price;
+  switch(course.option) {
+    case 'Eigener': return { fixed:0,   mmTicket:t,      klTicket:0,       total:t };
+    case 'A':       return { fixed:120, mmTicket:0,      klTicket:t,       total:120 };
+    case 'B':       return { fixed:60,  mmTicket:t*0.35, klTicket:t*0.65,  total:60+t*0.35 };
+    case 'AA':      return { fixed:160, mmTicket:0,      klTicket:t,       total:160 };
+    case 'BB':      return { fixed:80,  mmTicket:t*0.35, klTicket:t*0.65,  total:80+t*0.35 };
+    default:        return { fixed:0,   mmTicket:0,      klTicket:0,       total:0 };
+  }
+}
+
 const DEFAULT_COURSES = [
-  { id:1,  day:"Mo 8.6.", time:"10–13", name:"Eröffnung",                       leader:"Mayamunay",          price:0,  capacity:50, participants:[] },
-  { id:2,  day:"Mo 8.6.", time:"14–17", name:"Playfight",                        leader:"Kendra & Gabriel",   price:25, capacity:20, participants:[] },
-  { id:3,  day:"Mo 8.6.", time:"19–22", name:"Bhajan Singen",                    leader:"San Koch",           price:22, capacity:30, participants:[] },
-  { id:4,  day:"Di 9.6.", time:"9–10",  name:"Faszien Flow",                     leader:"Yilmaz Koshua",      price:15, capacity:20, participants:[] },
-  { id:5,  day:"Di 9.6.", time:"10–13", name:"Wasser, Reise & Zyklusarbeit",     leader:"Kai, Louit & Greta", price:30, capacity:25, participants:[] },
-  { id:6,  day:"Di 9.6.", time:"14–17", name:"Contact Improvisation",            leader:"San Koch",           price:25, capacity:20, participants:[] },
-  { id:7,  day:"Di 9.6.", time:"19–22", name:"Klangreise & Frei-Singen",         leader:"Kai, Louit & Greta", price:28, capacity:25, participants:[] },
-  { id:8,  day:"Mi 10.6.",time:"9–10",  name:"Faszien Flow",                     leader:"Yilmaz Koshua",      price:15, capacity:20, participants:[] },
-  { id:9,  day:"Do 11.6.",time:"9–10",  name:"Faszien Flow",                     leader:"Yilmaz Koshua",      price:15, capacity:20, participants:[] },
-  { id:10, day:"Do 11.6.",time:"14–17", name:"Kundalini Yoga",                   leader:"Nadin Adesh",        price:28, capacity:20, participants:[] },
-  { id:11, day:"Do 11.6.",time:"19–22", name:"Maya Munay Community Event",       leader:"Mayamunay",          price:0,  capacity:40, participants:[] },
-  { id:12, day:"Fr 12.6.",time:"9–10",  name:"Faszien Flow",                     leader:"Yilmaz Koshua",      price:15, capacity:20, participants:[] },
-  { id:13, day:"Fr 12.6.",time:"14–17", name:"Weibliche Souveränität",           leader:"Kristina Ebel",      price:35, capacity:15, participants:[] },
-  { id:14, day:"Fr 12.6.",time:"19–22", name:"Vokale Gruppen-Improvisation",     leader:"Doro",               price:22, capacity:25, participants:[] },
-  { id:15, day:"Sa 13.6.",time:"9–10",  name:"Faszien Flow",                     leader:"Yilmaz Koshua",      price:15, capacity:20, participants:[] },
-  { id:16, day:"Sa 13.6.",time:"10–13", name:"Face Yoga",                        leader:"Nadine",             price:30, capacity:15, participants:[] },
-  { id:17, day:"Sa 13.6.",time:"14–17", name:"Mevlut Vortrag",                   leader:"Mevlut",             price:20, capacity:30, participants:[] },
-  { id:18, day:"Sa 13.6.",time:"19–22", name:"Maya Munay Abend",                 leader:"Mayamunay",          price:30, capacity:40, participants:[] },
-  { id:19, day:"So 14.6.",time:"9–10",  name:"Faszien Flow",                     leader:"Yilmaz Koshua",      price:15, capacity:20, participants:[] },
-  { id:20, day:"So 14.6.",time:"10–13", name:"Fluent Heart – Cacao & Fluentbody",leader:"Elli Steiger",       price:35, capacity:20, participants:[] },
-  { id:21, day:"So 14.6.",time:"19–22", name:"Kakao Konzert",                    leader:"Mayamunay",          price:30, capacity:40, participants:[] },
+  { id:1,  day:"Mo 8.6.", time:"10–13", name:"Eröffnung",                        leader:"Mayamunay",          price:0,  capacity:50, option:'Eigener', participants:[] },
+  { id:2,  day:"Mo 8.6.", time:"14–17", name:"Playfight",                         leader:"Kendra & Gabriel",   price:25, capacity:20, option:'B',       participants:[] },
+  { id:3,  day:"Mo 8.6.", time:"19–22", name:"Bhajan Singen",                     leader:"San Koch",           price:22, capacity:30, option:'B',       participants:[] },
+  { id:4,  day:"Di 9.6.", time:"9–10",  name:"Faszien Flow",                      leader:"Yilmaz Koshua",      price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:5,  day:"Di 9.6.", time:"10–13", name:"Wasser, Reise & Zyklusarbeit",      leader:"Kai, Louit & Greta", price:30, capacity:25, option:'B',       participants:[] },
+  { id:6,  day:"Di 9.6.", time:"14–17", name:"Contact Improvisation",             leader:"San Koch",           price:25, capacity:20, option:'A',       participants:[] },
+  { id:7,  day:"Di 9.6.", time:"19–22", name:"Klangreise & Frei-Singen",          leader:"Kai, Louit & Greta", price:28, capacity:25, option:'B',       participants:[] },
+  { id:8,  day:"Mi 10.6.",time:"9–10",  name:"Faszien Flow",                      leader:"Yilmaz Koshua",      price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:9,  day:"Do 11.6.",time:"9–10",  name:"Faszien Flow",                      leader:"Yilmaz Koshua",      price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:10, day:"Do 11.6.",time:"14–17", name:"Kundalini Yoga",                    leader:"Nadin Adesh",        price:28, capacity:20, option:'B',       participants:[] },
+  { id:11, day:"Do 11.6.",time:"19–22", name:"Kakao Blog Event",                  leader:"Mayamunay",          price:0,  capacity:40, option:'Eigener', participants:[] },
+  { id:12, day:"Fr 12.6.",time:"9–10",  name:"Faszien Flow",                      leader:"Yilmaz Koshua",      price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:13, day:"Fr 12.6.",time:"14–17", name:"Weibliche Souveränität",            leader:"Kristina Ebel",      price:35, capacity:15, option:'B',       participants:[] },
+  { id:14, day:"Fr 12.6.",time:"19–22", name:"Vokale Gruppen-Improvisation",      leader:"Doro",               price:22, capacity:25, option:'A',       participants:[] },
+  { id:15, day:"Sa 13.6.",time:"9–10",  name:"Faszien Flow",                      leader:"Yilmaz Koshua",      price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:16, day:"Sa 13.6.",time:"10–13", name:"Face Yoga",                         leader:"Nadine",             price:30, capacity:15, option:'A',       participants:[] },
+  { id:17, day:"Sa 13.6.",time:"14–17", name:"Mevlut Vortrag",                    leader:"Mevlut",             price:20, capacity:30, option:'Eigener', participants:[] },
+  { id:18, day:"Sa 13.6.",time:"19–22", name:"Maya Munay Abend",                  leader:"Mayamunay",          price:30, capacity:40, option:'Eigener', participants:[] },
+  { id:19, day:"So 14.6.",time:"9–10",  name:"Faszien Flow",                      leader:"Yilmaz Koshua",      price:15, capacity:20, option:'Eigener', participants:[] },
+  { id:20, day:"So 14.6.",time:"10–13", name:"Fluent Heart – Cacao & Fluentbody", leader:"Elli Steiger",       price:35, capacity:20, option:'B',       participants:[] },
+  { id:21, day:"So 14.6.",time:"14–17", name:"Rape Zeremonie / Breathwork",       leader:"Eileen Eichenberg",  price:35, capacity:20, option:'B',       participants:[] },
+  { id:22, day:"So 14.6.",time:"19–22", name:"Kakao Konzert",                     leader:"Mayamunay",          price:30, capacity:40, option:'Eigener', participants:[] },
 ];
 
 let COURSES = [];
@@ -293,9 +353,27 @@ const GH_API = 'https://api.github.com';
 const GIST_FILE = 'mayamunay-bookings.json';
 
 // ── INIT ──
+function migrateCourses(saved) {
+  return DEFAULT_COURSES.map(def => {
+    const ex = saved.find(c => c.id === def.id);
+    if (!ex) return JSON.parse(JSON.stringify(def));
+    return Object.assign({}, def, {
+      price: ex.price ?? def.price,
+      capacity: ex.capacity ?? def.capacity,
+      option: ex.option || def.option,
+      participants: ex.participants || []
+    });
+  });
+}
+
 function init() {
   const s = localStorage.getItem('mm_courses');
-  COURSES = s ? JSON.parse(s) : JSON.parse(JSON.stringify(DEFAULT_COURSES));
+  if (s) {
+    try { COURSES = migrateCourses(JSON.parse(s)); }
+    catch(e) { COURSES = JSON.parse(JSON.stringify(DEFAULT_COURSES)); }
+  } else {
+    COURSES = JSON.parse(JSON.stringify(DEFAULT_COURSES));
+  }
   ghToken = localStorage.getItem('mm_gh_token') || '';
   ghGist  = localStorage.getItem('mm_gh_gist')  || '';
   if (ghToken) document.getElementById('s-token').value = ghToken;
@@ -314,7 +392,7 @@ async function loadFromGist() {
     const f = d.files[GIST_FILE];
     if (!f) return false;
     const parsed = JSON.parse(f.content);
-    if (parsed.courses) { COURSES = parsed.courses; saveLocal(); refreshView(); }
+    if (parsed.courses) { COURSES = migrateCourses(parsed.courses); saveLocal(); refreshView(); }
     return true;
   } catch { return false; }
 }
@@ -369,9 +447,10 @@ async function testConn() {
 }
 function smsg(m) { document.getElementById('s-msg').textContent = m; }
 function resetData() {
-  if (!confirm('Alle Buchungen löschen?')) return;
-  COURSES = JSON.parse(JSON.stringify(DEFAULT_COURSES));
-  saveLocal(); toast('Zurückgesetzt.'); refreshView();
+  showConfirm('Alle Buchungen löschen?', () => {
+    COURSES = JSON.parse(JSON.stringify(DEFAULT_COURSES));
+    saveLocal(); toast('Zurückgesetzt.'); refreshView();
+  }, 'Löschen');
 }
 
 // ── NAVIGATION ──
@@ -387,6 +466,58 @@ function showView(v) {
   if (v === 'dash') renderDash();
   if (v === 'kurse') renderKurse();
   if (v === 'tn') renderTNSelect();
+  if (v === 'fin') renderFin();
+}
+
+function renderFin() {
+  let totalMM = 0, totalKL = 0, totalFixed = 0;
+  const leaders = {};
+
+  const cards = COURSES.map(c => {
+    const mm = calcMM(c);
+    totalMM    += mm.total;
+    totalKL    += mm.klTicket;
+    totalFixed += mm.fixed;
+    if (c.leader !== 'Mayamunay') {
+      if (!leaders[c.leader]) leaders[c.leader] = { mm: 0, kl: 0, opts: new Set() };
+      leaders[c.leader].mm += mm.total;
+      leaders[c.leader].kl += mm.klTicket;
+      leaders[c.leader].opts.add(c.option);
+    }
+    const optColor = c.option==='Eigener'?'var(--gold)':c.option.startsWith('A')?'#4a7c59':'#7a6040';
+    const tn = c.participants.length;
+    const tickets = tn * c.price;
+    return `<div style="background:var(--ivory);border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:0 1px 6px rgba(45,26,14,0.08)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:0.75rem;color:#9a7a50">${c.day} · ${c.time} Uhr</span>
+        <span style="font-weight:bold;color:${optColor};font-size:0.78rem">${c.option}</span>
+      </div>
+      <div style="font-weight:600;font-size:0.88rem;margin-bottom:6px">${c.name}</div>
+      <div style="display:flex;justify-content:space-between;font-family:sans-serif;font-size:0.75rem">
+        <span style="color:#7a6040">${tn} TN · ${tickets}€ Tickets</span>
+        <span style="font-weight:bold;color:var(--gold)">MM: ${Math.round(mm.total)}€</span>
+      </div>
+      ${mm.klTicket > 0 ? `<div style="text-align:right;font-size:0.72rem;color:#4a7c59;margin-top:2px">KL erhält: ${Math.round(mm.klTicket)}€</div>` : ''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('fin-courses-m').innerHTML = cards;
+
+  document.getElementById('fin-stats-m').innerHTML = `
+    <div class="stat"><div class="lbl">MM Einnahmen</div><div class="val">${Math.round(totalMM)}€</div><div class="sub">${totalFixed}€ fix + ${Math.round(totalMM-totalFixed)}€ Tickets</div></div>
+    <div class="stat"><div class="lbl">KL Auszahlung</div><div class="val">${Math.round(totalKL)}€</div><div class="sub">aus Ticketverkauf</div></div>`;
+
+  const leaderHTML = Object.entries(leaders).map(([name, d]) =>
+    `<div style="background:var(--ivory);border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:0 1px 6px rgba(45,26,14,0.08)">
+      <div style="font-weight:600;margin-bottom:6px">${esc(name)}
+        <span style="font-size:0.7rem;color:#9a7a50;margin-left:6px">${[...d.opts].join(', ')}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:sans-serif;font-size:0.78rem">
+        <span style="color:#4a7c59">KL erhält: <strong>${Math.round(d.kl)}€</strong></span>
+        <span style="color:var(--gold)">MM erhält: <strong>${Math.round(d.mm)}€</strong></span>
+      </div>
+    </div>`).join('');
+  document.getElementById('fin-leaders-m').innerHTML = leaderHTML || '<div style="text-align:center;padding:20px;color:#9a7a50;font-size:0.85rem">Noch keine Buchungen</div>';
 }
 function refreshView() { showView(currentView); }
 
@@ -474,8 +605,9 @@ function renderTN() {
 function togglePaid(cid,i,v) { COURSES.find(c=>c.id===cid).participants[i].paid=v; renderTN(); autoSync(); }
 function removeTN(cid,i) {
   const c=COURSES.find(x=>x.id===cid);
-  if (!confirm(`"${c.participants[i].name}" entfernen?`)) return;
-  c.participants.splice(i,1); renderTN(); autoSync();
+  showConfirm(`"${c.participants[i].name}" entfernen?`, () => {
+    c.participants.splice(i,1); renderTN(); autoSync();
+  });
 }
 
 // ── SHEET (add participant) ──
@@ -485,12 +617,26 @@ function addParticipant() {
   const name = document.getElementById('m-name').value.trim();
   if (!name) { alert('Name erforderlich.'); return; }
   const c = COURSES.find(x=>x.id===selId);
-  if (c.participants.length >= c.capacity && !confirm('Kurs voll. Trotzdem?')) return;
+  if (c.participants.length >= c.capacity && !window._forceAdd) { showConfirm('Kurs ist voll. Trotzdem hinzufügen?', ()=>{ window._forceAdd=true; addParticipant(); window._forceAdd=false; }, 'Hinzufügen'); return; }
   c.participants.push({ name, email:document.getElementById('m-email').value.trim(), note:document.getElementById('m-note').value.trim(), paid:document.getElementById('m-paid').checked, addedAt:new Date().toISOString() });
   closeSheet(); renderTN(); autoSync();
   toast(name + ' hinzugefügt ✓');
   ['m-name','m-email','m-note'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('m-paid').checked=false;
+}
+
+// ── CONFIRM DIALOG ──
+let _confirmCb = null;
+function showConfirm(msg, cb, yesLabel='Löschen') {
+  _confirmCb = cb;
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-yes').textContent = yesLabel;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function closeConfirm(yes) {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  if (yes && _confirmCb) _confirmCb();
+  _confirmCb = null;
 }
 
 // ── UTILS ──
